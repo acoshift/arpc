@@ -57,6 +57,11 @@ type MultipartFormUnmarshaler interface {
 	UnmarshalMultipartForm(v *multipart.Form) error
 }
 
+// RequestUnmarshaler interface
+type RequestUnmarshaler interface {
+	UnmarshalRequest(r *http.Request) error
+}
+
 // RequestAdapter converts request to arpc before decode
 type RequestAdapter interface {
 	AdaptRequest(r *http.Request)
@@ -100,6 +105,11 @@ func decoder(r *http.Request, v interface{}) error {
 		}
 		if v, ok := v.(MultipartFormUnmarshaler); ok {
 			return badRequestError(v.UnmarshalMultipartForm(r.MultipartForm))
+		}
+	default:
+		// fallback to request unmarshaler
+		if v, ok := v.(RequestUnmarshaler); ok {
+			return badRequestError(v.UnmarshalRequest(r))
 		}
 	}
 	return ErrUnsupported
