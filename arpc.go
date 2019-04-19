@@ -1,0 +1,110 @@
+package arpc
+
+import (
+	"encoding/json"
+	"mime"
+	"mime/multipart"
+	"net/http"
+	"net/url"
+
+	"github.com/acoshift/hrpc"
+)
+
+var m = hrpc.Manager{
+	Encoder:      encoder,
+	Decoder:      decoder,
+	ErrorEncoder: errorEncoder,
+	Validate:     true,
+}
+
+// Error type
+type Error struct {
+	Status  int    `json:"-"`
+	Message string `json:"message"`
+}
+
+func (err *Error) Error() string {
+	return err.Message
+}
+
+var (
+	ErrUnsupported error = &Error{http.StatusUnsupportedMediaType, "unsupported content type"}
+
+	errMethodNotAllowed error = &Error{http.StatusMethodNotAllowed, "method not allowed"}
+)
+
+func encoder(w http.ResponseWriter, r *http.Request, v interface{}) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(struct {
+		OK     bool        `json:"ok"`
+		Result interface{} `json:"result"`
+	}{true, v})
+}
+
+// FormUnmarshaler interface
+type FormUnmarshaler interface {
+	UnmarshalForm(v url.Values) error
+}
+
+// MultipartFormUnmarshaler interface
+type MultipartFormUnmarshaler interface {
+	UnmarshalMultipartForm(v *multipart.Form) error
+}
+
+// RequestAdapter converts request to arpc before decode
+type RequestAdapter interface {
+	AdaptRequest(r *http.Request)
+}
+
+func decoder(r *http.Request, v interface{}) error {
+	if v, ok := v.(RequestAdapter); ok {
+		v.AdaptRequest(r)
+	}
+
+	if r.Method != http.MethodPost {
+		return errMethodNotAllowed
+	}
+
+	mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	switch mt {
+	case "application/json":
+		return json.NewDecoder(r.Body).Decode(v)
+	case "application/x-www-form-urlencoded":
+		err := r.ParseForm()
+		if err != nil {
+			return err
+		}
+		if v, ok := v.(FormUnmarshaler); ok {
+			return v.UnmarshalForm(r.PostForm)
+		}
+	case "multipart/form-data":
+		err := r.ParseMultipartForm(32 << 20)
+		if err != nil {
+			return err
+		}
+		if v, ok := v.(MultipartFormUnmarshaler); ok {
+			return v.UnmarshalMultipartForm(r.MultipartForm)
+		}
+	}
+	return ErrUnsupported
+}
+
+func errorEncoder(w http.ResponseWriter, r *http.Request, err error) {
+	status := http.StatusOK
+	if err, ok := err.(*Error); ok {
+		status = err.Status
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(struct {
+		OK    bool  `json:"ok"`
+		Error error `json:"error"`
+	}{false, err})
+}
+
+// Handler converts f to handler
+func Handler(f interface{}) http.Handler {
+	return m.Handler(f)
+}
