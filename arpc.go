@@ -31,6 +31,7 @@ var (
 	ErrUnsupported error = &Error{http.StatusUnsupportedMediaType, "unsupported content type"}
 
 	errMethodNotAllowed error = &Error{http.StatusMethodNotAllowed, "method not allowed"}
+	errNotFound         error = &Error{http.StatusNotFound, "not found"}
 )
 
 func encoder(w http.ResponseWriter, r *http.Request, v interface{}) {
@@ -107,4 +108,12 @@ func errorEncoder(w http.ResponseWriter, r *http.Request, err error) {
 // Handler converts f to handler
 func Handler(f interface{}) http.Handler {
 	return m.Handler(f)
+}
+
+func NotFound(w http.ResponseWriter, r *http.Request) {
+	errorEncoder(w, r, errNotFound)
+}
+
+func NotFoundHandler() http.Handler {
+	return http.HandlerFunc(NotFound)
 }
