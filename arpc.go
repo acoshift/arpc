@@ -58,6 +58,16 @@ type RequestAdapter interface {
 	AdaptRequest(r *http.Request)
 }
 
+func badRequestError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if _, ok := err.(*Error); ok {
+		return err
+	}
+	return &Error{Status: http.StatusBadRequest, Message: err.Error()}
+}
+
 func decoder(r *http.Request, v interface{}) error {
 	if v, ok := v.(RequestAdapter); ok {
 		v.AdaptRequest(r)
@@ -74,25 +84,25 @@ func decoder(r *http.Request, v interface{}) error {
 	case "application/x-www-form-urlencoded":
 		err := r.ParseForm()
 		if err != nil {
-			return err
+			return badRequestError(err)
 		}
 		if v, ok := v.(FormUnmarshaler); ok {
-			return v.UnmarshalForm(r.PostForm)
+			return badRequestError(v.UnmarshalForm(r.PostForm))
 		}
 	case "multipart/form-data":
 		err := r.ParseMultipartForm(32 << 20)
 		if err != nil {
-			return err
+			return badRequestError(err)
 		}
 		if v, ok := v.(MultipartFormUnmarshaler); ok {
-			return v.UnmarshalMultipartForm(r.MultipartForm)
+			return badRequestError(v.UnmarshalMultipartForm(r.MultipartForm))
 		}
 	}
 	return ErrUnsupported
 }
 
 func errorEncoder(w http.ResponseWriter, r *http.Request, err error) {
-	status := http.StatusOK
+	status := http.StatusInternalServerError
 	if err, ok := err.(*Error); ok {
 		status = err.Status
 	}
