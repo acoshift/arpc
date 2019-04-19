@@ -23,6 +23,10 @@ type Error struct {
 	Message string `json:"message"`
 }
 
+func NewError(status int, message string) error {
+	return &Error{status, message}
+}
+
 func (err *Error) Error() string {
 	return err.Message
 }
@@ -65,7 +69,7 @@ func badRequestError(err error) error {
 	if _, ok := err.(*Error); ok {
 		return err
 	}
-	return &Error{Status: http.StatusBadRequest, Message: err.Error()}
+	return NewError(http.StatusBadRequest, err.Error())
 }
 
 func decoder(r *http.Request, v interface{}) error {
