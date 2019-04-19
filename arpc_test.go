@@ -23,13 +23,6 @@ func sum(r *request) int {
 	return r.A + r.B
 }
 
-func div(r *request) (int, error) {
-	if r.B == 0 {
-		return 0, fmt.Errorf("divide by zero")
-	}
-	return r.A / r.B, nil
-}
-
 func TestSuccess(t *testing.T) {
 	t.Parallel()
 

@@ -80,7 +80,7 @@ func decoder(r *http.Request, v interface{}) error {
 	mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	switch mt {
 	case "application/json":
-		return json.NewDecoder(r.Body).Decode(v)
+		return badRequestError(json.NewDecoder(r.Body).Decode(v))
 	case "application/x-www-form-urlencoded":
 		err := r.ParseForm()
 		if err != nil {
