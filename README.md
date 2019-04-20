@@ -6,9 +6,9 @@ ARPC is the Acoshift's opinionated HTTP-RPC styled api
 
 ARPC will response http with only these 3 status codes
 
-- 200 OK
-- 400 Bad Request
-- 500 Internal Server Error
+- 200 OK - function works as expected
+- 400 Bad Request - developer (api caller) error, should never happened in production
+- 500 Internal Server Error - server error, should never happened (server broken)
 
 ## Example Responses
 
@@ -28,6 +28,10 @@ Content-Type: application/json; charset=utf-8
 
 ### Error Result
 
+- Validate error
+- Precondition failed
+- User error
+
 ```http
 HTTP/1.1 200 OK
 Content-Type: application/json; charset=utf-8
@@ -41,6 +45,8 @@ Content-Type: application/json; charset=utf-8
 ```
 
 ### Method not allowed
+
+- Developer (api caller) send invalid method
 
 ```http
 HTTP/1.1 400 Bad Request
@@ -56,6 +62,8 @@ Content-Type: application/json; charset=utf-8
 
 ### Function not found
 
+- Developer (api caller) call not exists function
+
 ```http
 HTTP/1.1 400 Bad Request
 Content-Type: application/json; charset=utf-8
@@ -70,6 +78,8 @@ Content-Type: application/json; charset=utf-8
 
 ### Unsupported Content-Type
 
+- Developer (api caller) send invalid content type
+
 ```http
 HTTP/1.1 400 Bad Request
 Content-Type: application/json; charset=utf-8
@@ -83,6 +93,8 @@ Content-Type: application/json; charset=utf-8
 ```
 
 ### Internal Server Error
+
+- Server broken !!!
 
 ```http
 HTTP/1.1 500 Internal Server Error
