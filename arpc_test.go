@@ -44,7 +44,7 @@ func TestInvalidContentType(t *testing.T) {
 	r := httptest.NewRequest("POST", "/", bytes.NewReader([]byte(`{"a": 2, "b": 3}`)))
 	h.ServeHTTP(w, r)
 
-	assert.Equal(t, http.StatusUnsupportedMediaType, w.Code)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestInvalidMethod(t *testing.T) {
@@ -55,7 +55,7 @@ func TestInvalidMethod(t *testing.T) {
 	r := httptest.NewRequest("GET", "/", nil)
 	h.ServeHTTP(w, r)
 
-	assert.Equal(t, http.StatusMethodNotAllowed, w.Code)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestNotFound(t *testing.T) {
@@ -67,23 +67,40 @@ func TestNotFound(t *testing.T) {
 	r.Header.Set("Content-Type", "application/json")
 	h.ServeHTTP(w, r)
 
-	assert.Equal(t, http.StatusNotFound, w.Code)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
 func TestError(t *testing.T) {
-	var err error = &arpc.Error{Status: http.StatusInternalServerError, Message: "internal error"}
-	assert.Equal(t, "internal error", err.Error())
+	t.Parallel()
 
-	h := arpc.Handler(func() error {
-		return err
+	t.Run("Error", func(t *testing.T) {
+		err := arpc.NewError("some error")
+		assert.Equal(t, "some error", err.Error())
+
+		h := arpc.Handler(func() error {
+			return err
+		})
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("POST", "/", bytes.NewReader([]byte(`{}`)))
+		r.Header.Set("Content-Type", "application/json")
+		h.ServeHTTP(w, r)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.JSONEq(t, `{"ok":false,"error":{"message":"some error"}}`, w.Body.String())
 	})
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("POST", "/", bytes.NewReader([]byte(`{}`)))
-	r.Header.Set("Content-Type", "application/json")
-	h.ServeHTTP(w, r)
 
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
-	assert.JSONEq(t, `{"ok":false,"error":{"message":"internal error"}}`, w.Body.String())
+	t.Run("Internal Error", func(t *testing.T) {
+		h := arpc.Handler(func() error {
+			return fmt.Errorf("some error")
+		})
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("POST", "/", bytes.NewReader([]byte(`{}`)))
+		r.Header.Set("Content-Type", "application/json")
+		h.ServeHTTP(w, r)
+
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		assert.JSONEq(t, `{"ok":false,"error":{}}`, w.Body.String())
+	})
 }
 
 type requestWithAdapter struct {
@@ -130,7 +147,7 @@ func TestAdapter(t *testing.T) {
 		r := httptest.NewRequest("GET", "/?a=p", nil)
 		h.ServeHTTP(w, r)
 
-		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.Equal(t, http.StatusOK, w.Code)
 		assert.JSONEq(t, `{"ok":false,"error":{"message":"invalid a"}}`, w.Body.String())
 	})
 }

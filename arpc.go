@@ -17,27 +17,6 @@ var m = hrpc.Manager{
 	Validate:     true,
 }
 
-// Error type
-type Error struct {
-	Status  int    `json:"-"`
-	Message string `json:"message"`
-}
-
-func NewError(status int, message string) error {
-	return &Error{status, message}
-}
-
-func (err *Error) Error() string {
-	return err.Message
-}
-
-var (
-	ErrUnsupported error = &Error{http.StatusUnsupportedMediaType, "unsupported content type"}
-
-	errMethodNotAllowed error = &Error{http.StatusMethodNotAllowed, "method not allowed"}
-	errNotFound         error = &Error{http.StatusNotFound, "not found"}
-)
-
 func encoder(w http.ResponseWriter, r *http.Request, v interface{}) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
@@ -67,16 +46,6 @@ type RequestAdapter interface {
 	AdaptRequest(r *http.Request)
 }
 
-func badRequestError(err error) error {
-	if err == nil {
-		return nil
-	}
-	if _, ok := err.(*Error); ok {
-		return err
-	}
-	return NewError(http.StatusBadRequest, err.Error())
-}
-
 func decoder(r *http.Request, v interface{}) error {
 	if v, ok := v.(RequestAdapter); ok {
 		v.AdaptRequest(r)
@@ -89,43 +58,49 @@ func decoder(r *http.Request, v interface{}) error {
 	mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
 	switch mt {
 	case "application/json":
-		return badRequestError(json.NewDecoder(r.Body).Decode(v))
+		return WrapError(json.NewDecoder(r.Body).Decode(v))
 	case "application/x-www-form-urlencoded":
 		err := r.ParseForm()
 		if err != nil {
-			return badRequestError(err)
+			return WrapError(err)
 		}
 		if v, ok := v.(FormUnmarshaler); ok {
-			return badRequestError(v.UnmarshalForm(r.PostForm))
+			return WrapError(v.UnmarshalForm(r.PostForm))
 		}
 	case "multipart/form-data":
 		err := r.ParseMultipartForm(32 << 20)
 		if err != nil {
-			return badRequestError(err)
+			return WrapError(err)
 		}
 		if v, ok := v.(MultipartFormUnmarshaler); ok {
-			return badRequestError(v.UnmarshalMultipartForm(r.MultipartForm))
+			return WrapError(v.UnmarshalMultipartForm(r.MultipartForm))
 		}
 	default:
 		// fallback to request unmarshaler
 		if v, ok := v.(RequestUnmarshaler); ok {
-			return badRequestError(v.UnmarshalRequest(r))
+			return WrapError(v.UnmarshalRequest(r))
 		}
 	}
 	return ErrUnsupported
 }
 
 func errorEncoder(w http.ResponseWriter, r *http.Request, err error) {
-	status := http.StatusInternalServerError
-	if err, ok := err.(*Error); ok {
-		status = err.Status
+	var status int
+	switch err.(type) {
+	case *Error:
+		status = http.StatusOK
+	case *ProtocolError:
+		status = http.StatusBadRequest
+	default:
+		status = http.StatusInternalServerError
+		err = internalError{}
 	}
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(struct {
-		OK    bool  `json:"ok"`
-		Error error `json:"error"`
+		OK    bool        `json:"ok"`
+		Error interface{} `json:"error"`
 	}{false, err})
 }
 
