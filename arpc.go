@@ -14,10 +14,14 @@ var m = hrpc.Manager{
 	Encoder:      encoder,
 	Decoder:      decoder,
 	ErrorEncoder: errorEncoder,
-	Validate:     true,
 }
 
-func encoder(w http.ResponseWriter, r *http.Request, v interface{}) {
+// SetValidate sets hrpc manager validate state
+func SetValidate(enable bool) {
+	m.Validate = enable
+}
+
+func encoder(w http.ResponseWriter, _ *http.Request, v interface{}) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(struct {
@@ -87,7 +91,7 @@ func decoder(r *http.Request, v interface{}) error {
 func errorEncoder(w http.ResponseWriter, r *http.Request, err error) {
 	var status int
 	switch err.(type) {
-	case *Error:
+	case OKError:
 		status = http.StatusOK
 	case *ProtocolError:
 		status = http.StatusBadRequest

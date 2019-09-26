@@ -89,6 +89,19 @@ func TestError(t *testing.T) {
 		assert.JSONEq(t, `{"ok":false,"error":{"message":"some error"}}`, w.Body.String())
 	})
 
+	t.Run("CustomError", func(t *testing.T) {
+		h := arpc.Handler(func() error {
+			return &customError{"1A475"}
+		})
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("POST", "/", bytes.NewReader([]byte(`{}`)))
+		r.Header.Set("Content-Type", "application/json")
+		h.ServeHTTP(w, r)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.JSONEq(t, `{"ok":false,"error":{"code":"1A475"}}`, w.Body.String())
+	})
+
 	t.Run("Internal Error", func(t *testing.T) {
 		h := arpc.Handler(func() error {
 			return fmt.Errorf("some error")
@@ -102,6 +115,16 @@ func TestError(t *testing.T) {
 		assert.JSONEq(t, `{"ok":false,"error":{}}`, w.Body.String())
 	})
 }
+
+type customError struct {
+	Code string `json:"code"`
+}
+
+func (err *customError) Error() string {
+	return fmt.Sprintf("error %s", err.Code)
+}
+
+func (err *customError) OKError() {}
 
 type requestWithAdapter struct {
 	A int `json:"a"`
