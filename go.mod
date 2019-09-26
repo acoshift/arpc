@@ -1,8 +1,8 @@
 module github.com/acoshift/arpc
 
-go 1.12
+go 1.13
 
 require (
-	github.com/acoshift/hrpc v0.0.0-20190419060131-c019e52d9cd3
+	github.com/acoshift/hrpc/v3 v3.2.0
 	github.com/stretchr/testify v1.3.0
 )

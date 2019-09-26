@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/acoshift/hrpc"
+	"github.com/acoshift/hrpc/v3"
 )
 
 var m = hrpc.Manager{

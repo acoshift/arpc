@@ -4,11 +4,22 @@ package arpc
 // use this error for validate, precondition failed, etc.
 type Error struct {
 	Message string `json:"message"`
+
+	err error
+}
+
+// Unwrap implements errors.Unwarp
+func (err *Error) Unwrap() error {
+	return err.err
 }
 
 // NewError creates new Error
 func NewError(message string) error {
-	return &Error{message}
+	return &Error{message, nil}
+}
+
+func wrapError(err error) error {
+	return &Error{err.Error(), err}
 }
 
 // WrapError wraps given error with Error
@@ -22,7 +33,7 @@ func WrapError(err error) error {
 	case *ProtocolError:
 		return err
 	default:
-		return NewError(err.Error())
+		return wrapError(err)
 	}
 }
 
