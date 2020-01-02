@@ -21,6 +21,13 @@ func SetValidate(enable bool) {
 	m.Validate = enable
 }
 
+var onErrorFuncs []func(error)
+
+// OnError calls f when error
+func OnError(f func(err error)) {
+	onErrorFuncs = append(onErrorFuncs, f)
+}
+
 func encoder(w http.ResponseWriter, _ *http.Request, v interface{}) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
@@ -89,6 +96,10 @@ func decoder(r *http.Request, v interface{}) error {
 }
 
 func errorEncoder(w http.ResponseWriter, r *http.Request, err error) {
+	for _, f := range onErrorFuncs {
+		go f(err)
+	}
+
 	var status int
 	switch err.(type) {
 	case OKError:
