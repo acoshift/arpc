@@ -10,33 +10,6 @@ import (
 	"github.com/acoshift/hrpc/v3"
 )
 
-var m = hrpc.Manager{
-	Encoder:      encoder,
-	Decoder:      decoder,
-	ErrorEncoder: errorEncoder,
-}
-
-// SetValidate sets hrpc manager validate state
-func SetValidate(enable bool) {
-	m.Validate = enable
-}
-
-var onErrorFuncs []func(error)
-
-// OnError calls f when error
-func OnError(f func(err error)) {
-	onErrorFuncs = append(onErrorFuncs, f)
-}
-
-func encoder(w http.ResponseWriter, _ *http.Request, v interface{}) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(struct {
-		OK     bool        `json:"ok"`
-		Result interface{} `json:"result"`
-	}{true, v})
-}
-
 // FormUnmarshaler interface
 type FormUnmarshaler interface {
 	UnmarshalForm(v url.Values) error
@@ -57,7 +30,51 @@ type RequestAdapter interface {
 	AdaptRequest(r *http.Request)
 }
 
-func decoder(r *http.Request, v interface{}) error {
+type Manager struct {
+	m            hrpc.Manager
+	onErrorFuncs []func(http.ResponseWriter, *http.Request, error)
+	onOKFuncs    []func(http.ResponseWriter, *http.Request, interface{})
+}
+
+// New creates new arpc manager
+func New() *Manager {
+	var m Manager
+	m.m = hrpc.Manager{
+		Decoder:      m.decoder,
+		Encoder:      m.encoder,
+		ErrorEncoder: m.errorEncoder,
+	}
+	return &m
+}
+
+// SetValidate sets hrpc manager validate state
+func (m *Manager) SetValidate(enable bool) {
+	m.m.Validate = enable
+}
+
+// OnError calls f when error
+func (m *Manager) OnError(f func(w http.ResponseWriter, r *http.Request, err error)) {
+	m.onErrorFuncs = append(m.onErrorFuncs, f)
+}
+
+// OnOK calls f before encode ok response
+func (m *Manager) OnOK(f func(w http.ResponseWriter, r *http.Request, v interface{})) {
+	m.onOKFuncs = append(m.onOKFuncs, f)
+}
+
+func (m *Manager) encoder(w http.ResponseWriter, r *http.Request, v interface{}) {
+	for _, f := range m.onOKFuncs {
+		f(w, r, v)
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(struct {
+		OK     bool        `json:"ok"`
+		Result interface{} `json:"result"`
+	}{true, v})
+}
+
+func (m *Manager) decoder(r *http.Request, v interface{}) error {
 	if v, ok := v.(RequestAdapter); ok {
 		v.AdaptRequest(r)
 	}
@@ -95,9 +112,9 @@ func decoder(r *http.Request, v interface{}) error {
 	return ErrUnsupported
 }
 
-func errorEncoder(w http.ResponseWriter, r *http.Request, err error) {
-	for _, f := range onErrorFuncs {
-		go f(err)
+func (m *Manager) errorEncoder(w http.ResponseWriter, r *http.Request, err error) {
+	for _, f := range m.onErrorFuncs {
+		f(w, r, err)
 	}
 
 	var status int
@@ -120,14 +137,14 @@ func errorEncoder(w http.ResponseWriter, r *http.Request, err error) {
 }
 
 // Handler converts f to handler
-func Handler(f interface{}) http.Handler {
-	return m.Handler(f)
+func (m *Manager) Handler(f interface{}) http.Handler {
+	return m.m.Handler(f)
 }
 
-func NotFound(w http.ResponseWriter, r *http.Request) {
-	errorEncoder(w, r, errNotFound)
+func (m *Manager) NotFound(w http.ResponseWriter, r *http.Request) {
+	m.errorEncoder(w, r, errNotFound)
 }
 
-func NotFoundHandler() http.Handler {
-	return http.HandlerFunc(NotFound)
+func (m *Manager) NotFoundHandler() http.Handler {
+	return http.HandlerFunc(m.NotFound)
 }

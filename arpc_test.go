@@ -11,7 +11,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/acoshift/arpc"
+	"github.com/acoshift/arpc/v2"
 )
 
 type request struct {
@@ -26,7 +26,8 @@ func sum(r *request) int {
 func TestSuccess(t *testing.T) {
 	t.Parallel()
 
-	h := arpc.Handler(sum)
+	m := arpc.New()
+	h := m.Handler(sum)
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/", bytes.NewReader([]byte(`{"a": 2, "b": 3}`)))
 	r.Header.Set("Content-Type", "application/json")
@@ -36,10 +37,29 @@ func TestSuccess(t *testing.T) {
 	assert.JSONEq(t, `{"ok":true,"result":5}`, w.Body.String())
 }
 
+func TestOnOK(t *testing.T) {
+	t.Parallel()
+
+	m := arpc.New()
+	m.OnOK(func(w http.ResponseWriter, r *http.Request, v interface{}) {
+		w.Header().Set("Cache-Control", "public, max-age=1")
+	})
+	h := m.Handler(sum)
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/", bytes.NewReader([]byte(`{"a": 2, "b": 3}`)))
+	r.Header.Set("Content-Type", "application/json")
+	h.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.JSONEq(t, `{"ok":true,"result":5}`, w.Body.String())
+	assert.Equal(t, "public, max-age=1", w.Header().Get("Cache-Control"))
+}
+
 func TestInvalidContentType(t *testing.T) {
 	t.Parallel()
 
-	h := arpc.Handler(sum)
+	m := arpc.New()
+	h := m.Handler(sum)
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/", bytes.NewReader([]byte(`{"a": 2, "b": 3}`)))
 	h.ServeHTTP(w, r)
@@ -50,7 +70,8 @@ func TestInvalidContentType(t *testing.T) {
 func TestInvalidMethod(t *testing.T) {
 	t.Parallel()
 
-	h := arpc.Handler(sum)
+	m := arpc.New()
+	h := m.Handler(sum)
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("GET", "/", nil)
 	h.ServeHTTP(w, r)
@@ -61,7 +82,8 @@ func TestInvalidMethod(t *testing.T) {
 func TestNotFound(t *testing.T) {
 	t.Parallel()
 
-	h := arpc.NotFoundHandler()
+	m := arpc.New()
+	h := m.NotFoundHandler()
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/", bytes.NewReader([]byte(`{}`)))
 	r.Header.Set("Content-Type", "application/json")
@@ -73,11 +95,13 @@ func TestNotFound(t *testing.T) {
 func TestError(t *testing.T) {
 	t.Parallel()
 
+	m := arpc.New()
+
 	t.Run("Error", func(t *testing.T) {
 		err := arpc.NewError("some error")
 		assert.Equal(t, "some error", err.Error())
 
-		h := arpc.Handler(func() error {
+		h := m.Handler(func() error {
 			return err
 		})
 		w := httptest.NewRecorder()
@@ -90,7 +114,7 @@ func TestError(t *testing.T) {
 	})
 
 	t.Run("CustomError", func(t *testing.T) {
-		h := arpc.Handler(func() error {
+		h := m.Handler(func() error {
 			return &customError{"1A475"}
 		})
 		w := httptest.NewRecorder()
@@ -103,7 +127,7 @@ func TestError(t *testing.T) {
 	})
 
 	t.Run("Internal Error", func(t *testing.T) {
-		h := arpc.Handler(func() error {
+		h := m.Handler(func() error {
 			return fmt.Errorf("some error")
 		})
 		w := httptest.NewRecorder()
@@ -151,7 +175,8 @@ func (req *requestWithAdapter) UnmarshalForm(v url.Values) error {
 func TestAdapter(t *testing.T) {
 	t.Parallel()
 
-	h := arpc.Handler(func(req *requestWithAdapter) (*struct{}, error) {
+	m := arpc.New()
+	h := m.Handler(func(req *requestWithAdapter) (*struct{}, error) {
 		assert.Equal(t, 1, req.A)
 		return new(struct{}), nil
 	})
