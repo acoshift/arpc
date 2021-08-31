@@ -75,40 +75,39 @@ func (m *Manager) encoder(w http.ResponseWriter, r *http.Request, v interface{})
 }
 
 func (m *Manager) decoder(r *http.Request, v interface{}) error {
-	if v, ok := v.(RequestAdapter); ok {
-		v.AdaptRequest(r)
+	if p, ok := v.(RequestAdapter); ok {
+		p.AdaptRequest(r)
 	}
 
-	if r.Method != http.MethodPost {
-		return errMethodNotAllowed
+	if r.Method == http.MethodPost {
+		mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
+		switch mt {
+		case "application/json":
+			return WrapError(json.NewDecoder(r.Body).Decode(v))
+		case "application/x-www-form-urlencoded":
+			err := r.ParseForm()
+			if err != nil {
+				return WrapError(err)
+			}
+			if v, ok := v.(FormUnmarshaler); ok {
+				return WrapError(v.UnmarshalForm(r.PostForm))
+			}
+		case "multipart/form-data":
+			err := r.ParseMultipartForm(32 << 20)
+			if err != nil {
+				return WrapError(err)
+			}
+			if v, ok := v.(MultipartFormUnmarshaler); ok {
+				return WrapError(v.UnmarshalMultipartForm(r.MultipartForm))
+			}
+		}
 	}
 
-	mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
-	switch mt {
-	case "application/json":
-		return WrapError(json.NewDecoder(r.Body).Decode(v))
-	case "application/x-www-form-urlencoded":
-		err := r.ParseForm()
-		if err != nil {
-			return WrapError(err)
-		}
-		if v, ok := v.(FormUnmarshaler); ok {
-			return WrapError(v.UnmarshalForm(r.PostForm))
-		}
-	case "multipart/form-data":
-		err := r.ParseMultipartForm(32 << 20)
-		if err != nil {
-			return WrapError(err)
-		}
-		if v, ok := v.(MultipartFormUnmarshaler); ok {
-			return WrapError(v.UnmarshalMultipartForm(r.MultipartForm))
-		}
-	default:
-		// fallback to request unmarshaler
-		if v, ok := v.(RequestUnmarshaler); ok {
-			return WrapError(v.UnmarshalRequest(r))
-		}
+	// fallback to request unmarshaler
+	if v, ok := v.(RequestUnmarshaler); ok {
+		return WrapError(v.UnmarshalRequest(r))
 	}
+
 	return ErrUnsupported
 }
 

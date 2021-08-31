@@ -80,8 +80,7 @@ var (
 )
 
 var (
-	errMethodNotAllowed = NewProtocolError("method not allowed")
-	errNotFound         = NewProtocolError("not found")
+	errNotFound = NewProtocolError("not found")
 )
 
 type internalError struct{}

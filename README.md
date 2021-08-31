@@ -44,22 +44,6 @@ Content-Type: application/json; charset=utf-8
 }
 ```
 
-### Method not allowed
-
-- Developer (api caller) send invalid method
-
-```http
-HTTP/1.1 400 Bad Request
-Content-Type: application/json; charset=utf-8
-
-{
-	"ok": false,
-	"error": {
-		"message": "method not allowed"
-	}
-}
-```
-
 ### Function not found
 
 - Developer (api caller) call not exists function

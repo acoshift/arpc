@@ -67,18 +67,6 @@ func TestInvalidContentType(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestInvalidMethod(t *testing.T) {
-	t.Parallel()
-
-	m := arpc.New()
-	h := m.Handler(sum)
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("GET", "/", nil)
-	h.ServeHTTP(w, r)
-
-	assert.Equal(t, http.StatusBadRequest, w.Code)
-}
-
 func TestNotFound(t *testing.T) {
 	t.Parallel()
 
