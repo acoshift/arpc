@@ -40,9 +40,9 @@ type Manager struct {
 func New() *Manager {
 	var m Manager
 	m.m = hrpc.Manager{
-		Decoder:      m.decoder,
-		Encoder:      m.encoder,
-		ErrorEncoder: m.errorEncoder,
+		Decoder:      m.Decode,
+		Encoder:      m.Encode,
+		ErrorEncoder: m.EncodeError,
 	}
 	return &m
 }
@@ -62,7 +62,7 @@ func (m *Manager) OnOK(f func(w http.ResponseWriter, r *http.Request, v interfac
 	m.onOKFuncs = append(m.onOKFuncs, f)
 }
 
-func (m *Manager) encoder(w http.ResponseWriter, r *http.Request, v interface{}) {
+func (m *Manager) Encode(w http.ResponseWriter, r *http.Request, v interface{}) {
 	for _, f := range m.onOKFuncs {
 		f(w, r, v)
 	}
@@ -74,7 +74,7 @@ func (m *Manager) encoder(w http.ResponseWriter, r *http.Request, v interface{})
 	}{true, v})
 }
 
-func (m *Manager) decoder(r *http.Request, v interface{}) error {
+func (m *Manager) Decode(r *http.Request, v interface{}) error {
 	if p, ok := v.(RequestAdapter); ok {
 		p.AdaptRequest(r)
 	}
@@ -111,7 +111,7 @@ func (m *Manager) decoder(r *http.Request, v interface{}) error {
 	return ErrUnsupported
 }
 
-func (m *Manager) errorEncoder(w http.ResponseWriter, r *http.Request, err error) {
+func (m *Manager) EncodeError(w http.ResponseWriter, r *http.Request, err error) {
 	for _, f := range m.onErrorFuncs {
 		f(w, r, err)
 	}
@@ -141,7 +141,7 @@ func (m *Manager) Handler(f interface{}) http.Handler {
 }
 
 func (m *Manager) NotFound(w http.ResponseWriter, r *http.Request) {
-	m.errorEncoder(w, r, errNotFound)
+	m.EncodeError(w, r, errNotFound)
 }
 
 func (m *Manager) NotFoundHandler() http.Handler {
