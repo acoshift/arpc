@@ -19,15 +19,18 @@ type request struct {
 	B int `json:"b"`
 }
 
-func sum(r *request) int {
+func f1(r *request) int {
 	return r.A + r.B
+}
+
+func f2() {
 }
 
 func TestSuccess(t *testing.T) {
 	t.Parallel()
 
 	m := arpc.New()
-	h := m.Handler(sum)
+	h := m.Handler(f1)
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/", bytes.NewReader([]byte(`{"a": 2, "b": 3}`)))
 	r.Header.Set("Content-Type", "application/json")
@@ -41,25 +44,39 @@ func TestOnOK(t *testing.T) {
 	t.Parallel()
 
 	m := arpc.New()
-	m.OnOK(func(w http.ResponseWriter, r *http.Request, v interface{}) {
+	m.OnOK(func(w http.ResponseWriter, r *http.Request, req, res any) {
 		w.Header().Set("Cache-Control", "public, max-age=1")
 	})
-	h := m.Handler(sum)
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("POST", "/", bytes.NewReader([]byte(`{"a": 2, "b": 3}`)))
-	r.Header.Set("Content-Type", "application/json")
-	h.ServeHTTP(w, r)
 
-	assert.Equal(t, http.StatusOK, w.Code)
-	assert.JSONEq(t, `{"ok":true,"result":5}`, w.Body.String())
-	assert.Equal(t, "public, max-age=1", w.Header().Get("Cache-Control"))
+	t.Run("f1", func(t *testing.T) {
+		h := m.Handler(f1)
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("POST", "/", bytes.NewReader([]byte(`{"a": 2, "b": 3}`)))
+		r.Header.Set("Content-Type", "application/json")
+		h.ServeHTTP(w, r)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.JSONEq(t, `{"ok":true,"result":5}`, w.Body.String())
+		assert.Equal(t, "public, max-age=1", w.Header().Get("Cache-Control"))
+	})
+
+	t.Run("f2", func(t *testing.T) {
+		h := m.Handler(f2)
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("POST", "/", bytes.NewReader([]byte(`{}`)))
+		r.Header.Set("Content-Type", "application/json")
+		h.ServeHTTP(w, r)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.JSONEq(t, `{"ok":true,"result":{}}`, w.Body.String())
+	})
 }
 
 func TestInvalidContentType(t *testing.T) {
 	t.Parallel()
 
 	m := arpc.New()
-	h := m.Handler(sum)
+	h := m.Handler(f1)
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/", bytes.NewReader([]byte(`{"a": 2, "b": 3}`)))
 	h.ServeHTTP(w, r)
