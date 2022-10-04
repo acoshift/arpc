@@ -103,8 +103,8 @@ func TestError(t *testing.T) {
 	m := arpc.New()
 
 	t.Run("Error", func(t *testing.T) {
-		err := arpc.NewError("some error")
-		assert.Equal(t, "some error", err.Error())
+		err := arpc.NewError("0001", "some error")
+		assert.Equal(t, "0001 some error", err.Error())
 
 		h := m.Handler(func() error {
 			return err
@@ -115,7 +115,7 @@ func TestError(t *testing.T) {
 		h.ServeHTTP(w, r)
 
 		assert.Equal(t, http.StatusOK, w.Code)
-		assert.JSONEq(t, `{"ok":false,"error":{"message":"some error"}}`, w.Body.String())
+		assert.JSONEq(t, `{"ok":false,"error":{"code":"0001","message":"some error"}}`, w.Body.String())
 	})
 
 	t.Run("CustomError", func(t *testing.T) {

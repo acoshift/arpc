@@ -12,8 +12,9 @@ type OKError interface {
 // Error always return 200 status with false ok value
 // use this error for validate, precondition failed, etc.
 type Error struct {
-	msg string
-	err error
+	code string
+	msg  string
+	err  error
 }
 
 // OKError implements OKError
@@ -21,7 +22,11 @@ func (err *Error) OKError() {}
 
 // Error implements error
 func (err *Error) Error() string {
-	return err.msg
+	s := err.code
+	if s != "" {
+		s += " "
+	}
+	return s + err.msg
 }
 
 // Unwrap implements errors.Unwarp
@@ -32,17 +37,18 @@ func (err *Error) Unwrap() error {
 // MarshalJSON implements json.Marshaler
 func (err *Error) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
-		Message string `json:"message"`
-	}{err.msg})
+		Code    string `json:"code,omitempty"`
+		Message string `json:"message,omitempty"`
+	}{err.code, err.msg})
 }
 
 // NewError creates new Error
-func NewError(message string) error {
-	return &Error{message, nil}
+func NewError(code, message string) error {
+	return &Error{code, message, nil}
 }
 
 func wrapError(err error) error {
-	return &Error{err.Error(), err}
+	return &Error{"", err.Error(), err}
 }
 
 // WrapError wraps given error with Error
@@ -63,11 +69,12 @@ func WrapError(err error) error {
 // ProtocolError always returns 400 status with false ok value
 // only use this error for invalid protocol usages
 type ProtocolError struct {
-	Message string `json:"message"`
+	Code    string `json:"code,omitempty"`
+	Message string `json:"message,omitempty"`
 }
 
-func NewProtocolError(message string) error {
-	return &ProtocolError{message}
+func NewProtocolError(code, message string) error {
+	return &ProtocolError{code, message}
 }
 
 func (err *ProtocolError) Error() string {
@@ -76,11 +83,8 @@ func (err *ProtocolError) Error() string {
 
 // predefined errors
 var (
-	ErrUnsupported = NewProtocolError("unsupported content type")
-)
-
-var (
-	errNotFound = NewProtocolError("not found")
+	ErrNotFound    = NewProtocolError("", "not found")
+	ErrUnsupported = NewProtocolError("", "unsupported content type")
 )
 
 type internalError struct{}

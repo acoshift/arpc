@@ -157,7 +157,7 @@ func (m *Manager) EncodeError(w http.ResponseWriter, r *http.Request, err error)
 }
 
 func (m *Manager) NotFound(w http.ResponseWriter, r *http.Request) {
-	m.EncodeError(w, r, errNotFound)
+	m.EncodeError(w, r, ErrNotFound)
 }
 
 func (m *Manager) NotFoundHandler() http.Handler {
