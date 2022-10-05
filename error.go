@@ -42,13 +42,18 @@ func (err *Error) MarshalJSON() ([]byte, error) {
 	}{err.code, err.msg})
 }
 
-// NewError creates new Error
-func NewError(code, message string) error {
-	return &Error{code, message, nil}
+// NewError creates new Error with message
+func NewError(message string) error {
+	return &Error{msg: message}
+}
+
+// NewErrorCode creates new Error with code and message
+func NewErrorCode(code, message string) error {
+	return &Error{code: code, msg: message}
 }
 
 func wrapError(err error) error {
-	return &Error{"", err.Error(), err}
+	return &Error{msg: err.Error(), err: err}
 }
 
 // WrapError wraps given error with Error

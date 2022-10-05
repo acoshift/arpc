@@ -102,9 +102,13 @@ func TestError(t *testing.T) {
 
 	m := arpc.New()
 
+	t.Run("String", func(t *testing.T) {
+		assert.Equal(t, "some error", arpc.NewError("some error").Error())
+		assert.Equal(t, "1000 some error", arpc.NewErrorCode("1000", "some error").Error())
+	})
+
 	t.Run("Error", func(t *testing.T) {
-		err := arpc.NewError("0001", "some error")
-		assert.Equal(t, "0001 some error", err.Error())
+		err := arpc.NewErrorCode("0001", "some error")
 
 		h := m.Handler(func() error {
 			return err
