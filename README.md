@@ -1,5 +1,10 @@
 # arpc
 
+![Build Status](https://github.com/acoshift/arpc/actions/workflows/test.yaml/badge.svg?branch=master)
+[![codecov](https://codecov.io/gh/acoshift/arpc/branch/master/graph/badge.svg?token=3AMuow5vXh)](https://codecov.io/gh/acoshift/arpc)
+[![Go Report Card](https://goreportcard.com/badge/github.com/acoshift/arpc)](https://goreportcard.com/report/github.com/acoshift/arpc)
+[![GoDoc](https://pkg.go.dev/badge/github.com/acoshift/arpc)](https://pkg.go.dev/github.com/acoshift/arpc)
+
 ARPC is the Acoshift's opinionated HTTP-RPC styled api
 
 ## HTTP Status Code

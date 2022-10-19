@@ -1,0 +1,19 @@
+name: Test
+on:
+  push:
+  pull_request:
+jobs:
+  runner-job:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: ['1.19']
+    name: Go ${{ matrix.go }}
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions/setup-go@v2
+      with:
+        go-version: ${{ matrix.go }}
+    - run: go get -t -v ./...
+    - run: go test -coverprofile=coverage.txt -covermode=atomic ./...
+    - uses: codecov/codecov-action@v1
