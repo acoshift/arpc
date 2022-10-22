@@ -42,6 +42,16 @@ func (err *Error) MarshalJSON() ([]byte, error) {
 	}{err.code, err.msg})
 }
 
+// Code returns error code
+func (err *Error) Code() string {
+	return err.code
+}
+
+// Message returns error message
+func (err *Error) Message() string {
+	return err.msg
+}
+
 // NewError creates new Error with message
 func NewError(message string) error {
 	return &Error{msg: message}
