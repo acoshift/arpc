@@ -7,6 +7,12 @@
 
 ARPC is the Acoshift's opinionated HTTP-RPC styled api
 
+## Installation
+
+```
+go get -u github.com/acoshift/arpc/v2
+```
+
 ## HTTP Status Code
 
 ARPC will response http with only these 3 status codes
