@@ -66,7 +66,7 @@ func wrapError(err error) error {
 	return &Error{msg: err.Error(), err: err}
 }
 
-// WrapError wraps given error with Error
+// WrapError wraps given error with OKError
 func WrapError(err error) error {
 	if err == nil {
 		return nil

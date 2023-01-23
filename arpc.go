@@ -50,6 +50,7 @@ type Manager struct {
 	Validate     bool // set to true to validate request after decode using Validatable interface
 	onErrorFuncs []func(http.ResponseWriter, *http.Request, any, error)
 	onOKFuncs    []func(http.ResponseWriter, *http.Request, any, any)
+	WrapError    func(error) error
 }
 
 // New creates new arpc manager
@@ -78,6 +79,13 @@ func (m *Manager) errorEncoder() ErrorEncoder {
 		return m.EncodeError
 	}
 	return m.ErrorEncoder
+}
+
+func (m *Manager) wrapError(err error) error {
+	if m.WrapError != nil {
+		return m.WrapError(err)
+	}
+	return err
 }
 
 // OnError calls f when error
@@ -190,6 +198,8 @@ func setOrPanic(m map[mapIndex]int, k mapIndex, v int) {
 }
 
 func (m *Manager) encodeAndHookError(w http.ResponseWriter, r *http.Request, req any, err error) {
+	err = m.wrapError(err)
+
 	m.errorEncoder()(w, r, err)
 
 	for _, f := range m.onErrorFuncs {

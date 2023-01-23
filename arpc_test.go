@@ -216,3 +216,22 @@ func TestAdapter(t *testing.T) {
 		assert.JSONEq(t, `{"ok":false,"error":{"message":"invalid a"}}`, w.Body.String())
 	})
 }
+
+func TestManager_WrapError(t *testing.T) {
+	t.Parallel()
+
+	m := arpc.New()
+	m.WrapError = func(err error) error {
+		return arpc.NewErrorCode("1000", err.Error())
+	}
+	h := m.Handler(func() error {
+		return fmt.Errorf("some error")
+	})
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("POST", "/", nil)
+	h.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.JSONEq(t, `{"ok":false,"error":{"code":"1000","message":"some error"}}`, w.Body.String())
+}
