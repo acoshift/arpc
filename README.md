@@ -100,3 +100,53 @@ Content-Type: application/json; charset=utf-8
 	"error": {} // internal error always return empty object
 }
 ```
+
+## How to use
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+	"net/http"
+	
+	"github.com/acoshift/arpc/v2"
+)
+
+func main() { 
+	// create new manager 
+	am := arpc.New()
+
+	mux := http.NewServeMux()
+	mux.Handle("/hello", am.Handle(Hello))
+	
+	// start server 
+	log.Fatal(http.ListenAndServe(":8080", mux))
+}
+
+type HelloParams struct {
+	Name string `json:"name"`
+}
+
+func (r *HelloParams) Valid() error {
+	if r.Name == "" {
+		return arpc.NewError("name required")
+	}
+	return nil
+}
+
+type HelloResult struct {
+	Message string `json:"message"`
+}
+
+func Hello(ctx context.Context, req *HelloParams) (*HelloResult, error) {
+	return &HelloResult{
+		Message: "hello " + req.Name,
+	}, nil
+}
+```
+
+## License
+
+MIT
