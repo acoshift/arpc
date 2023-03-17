@@ -371,25 +371,16 @@ func (ctx *MiddlewareContext) Value(key interface{}) interface{} {
 	return ctx.r.Context().Value(key)
 }
 
-func (ctx *MiddlewareContext) WithRequest(r *http.Request) *MiddlewareContext {
-	return &MiddlewareContext{
-		r: r,
-		w: ctx.w,
-	}
+func (ctx *MiddlewareContext) SetRequest(r *http.Request) {
+	ctx.r = r
 }
 
-func (ctx *MiddlewareContext) WithResponseWriter(w http.ResponseWriter) *MiddlewareContext {
-	return &MiddlewareContext{
-		r: ctx.r,
-		w: w,
-	}
+func (ctx *MiddlewareContext) SetResponseWriter(w http.ResponseWriter) {
+	ctx.w = w
 }
 
-func (ctx *MiddlewareContext) WithContext(nctx context.Context) *MiddlewareContext {
-	return &MiddlewareContext{
-		r: ctx.r.WithContext(nctx),
-		w: ctx.w,
-	}
+func (ctx *MiddlewareContext) SetRequestContext(nctx context.Context) {
+	ctx.r = ctx.r.WithContext(nctx)
 }
 
 type Middleware func(r *MiddlewareContext) error

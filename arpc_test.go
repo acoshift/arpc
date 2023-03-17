@@ -2,6 +2,7 @@ package arpc_test
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -260,8 +261,10 @@ func TestMiddleware(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		runHandler := false
 		h := m.Middleware(func(ctx *arpc.MiddlewareContext) error {
+			ctx.SetRequestContext(context.WithValue(ctx, "key", "value"))
 			return nil
-		})(m.Handler(func() {
+		})(m.Handler(func(ctx context.Context) {
+			assert.Equal(t, "value", ctx.Value("key"))
 			runHandler = true
 		}))
 
