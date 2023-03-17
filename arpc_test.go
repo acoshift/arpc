@@ -243,7 +243,7 @@ func TestMiddleware(t *testing.T) {
 
 	t.Run("Error", func(t *testing.T) {
 		runHandler := false
-		h := m.Middleware(func(r *http.Request) error {
+		h := m.Middleware(func(ctx *arpc.MiddlewareContext) error {
 			return arpc.NewError("middleware error")
 		})(m.Handler(func() {
 			runHandler = true
@@ -259,7 +259,7 @@ func TestMiddleware(t *testing.T) {
 
 	t.Run("OK", func(t *testing.T) {
 		runHandler := false
-		h := m.Middleware(func(r *http.Request) error {
+		h := m.Middleware(func(ctx *arpc.MiddlewareContext) error {
 			return nil
 		})(m.Handler(func() {
 			runHandler = true

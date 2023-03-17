@@ -1,12 +1,14 @@
 package arpc
 
 import (
+	"context"
 	"encoding/json"
 	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/url"
 	"reflect"
+	"time"
 )
 
 // Decoder is the request decoder
@@ -340,17 +342,68 @@ func (m *Manager) Handler(f any) http.Handler {
 	})
 }
 
-type Middleware func(r *http.Request) error
+type MiddlewareContext struct {
+	r *http.Request
+	w http.ResponseWriter
+}
+
+func (ctx *MiddlewareContext) Request() *http.Request {
+	return ctx.r
+}
+
+func (ctx *MiddlewareContext) ResponseWriter() http.ResponseWriter {
+	return ctx.w
+}
+
+func (ctx *MiddlewareContext) Deadline() (deadline time.Time, ok bool) {
+	return ctx.r.Context().Deadline()
+}
+
+func (ctx *MiddlewareContext) Done() <-chan struct{} {
+	return ctx.r.Context().Done()
+}
+
+func (ctx *MiddlewareContext) Err() error {
+	return ctx.r.Context().Err()
+}
+
+func (ctx *MiddlewareContext) Value(key interface{}) interface{} {
+	return ctx.r.Context().Value(key)
+}
+
+func (ctx *MiddlewareContext) WithRequest(r *http.Request) *MiddlewareContext {
+	return &MiddlewareContext{
+		r: r,
+		w: ctx.w,
+	}
+}
+
+func (ctx *MiddlewareContext) WithResponseWriter(w http.ResponseWriter) *MiddlewareContext {
+	return &MiddlewareContext{
+		r: ctx.r,
+		w: w,
+	}
+}
+
+func (ctx *MiddlewareContext) WithContext(nctx context.Context) *MiddlewareContext {
+	return &MiddlewareContext{
+		r: ctx.r.WithContext(nctx),
+		w: ctx.w,
+	}
+}
+
+type Middleware func(r *MiddlewareContext) error
 
 func (m *Manager) Middleware(f Middleware) func(http.Handler) http.Handler {
 	return func(h http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			err := f(r)
+			ctx := MiddlewareContext{r, w}
+			err := f(&ctx)
 			if err != nil {
-				m.encodeAndHookError(w, r, nil, err)
+				m.encodeAndHookError(ctx.w, ctx.r, nil, err)
 				return
 			}
-			h.ServeHTTP(w, r)
+			h.ServeHTTP(ctx.w, ctx.r)
 		})
 	}
 }
