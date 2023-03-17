@@ -235,3 +235,41 @@ func TestManager_WrapError(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.JSONEq(t, `{"ok":false,"error":{"code":"1000","message":"some error"}}`, w.Body.String())
 }
+
+func TestMiddleware(t *testing.T) {
+	t.Parallel()
+
+	m := arpc.New()
+
+	t.Run("Error", func(t *testing.T) {
+		runHandler := false
+		h := m.Middleware(func(r *http.Request) error {
+			return arpc.NewError("middleware error")
+		})(m.Handler(func() {
+			runHandler = true
+		}))
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("POST", "/", nil)
+		h.ServeHTTP(w, r)
+
+		assert.False(t, runHandler)
+		assert.JSONEq(t, `{"ok":false,"error":{"message":"middleware error"}}`, w.Body.String())
+	})
+
+	t.Run("OK", func(t *testing.T) {
+		runHandler := false
+		h := m.Middleware(func(r *http.Request) error {
+			return nil
+		})(m.Handler(func() {
+			runHandler = true
+		}))
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("POST", "/", nil)
+		h.ServeHTTP(w, r)
+
+		assert.True(t, runHandler)
+		assert.JSONEq(t, `{"ok":true,"result":{}}`, w.Body.String())
+	})
+}

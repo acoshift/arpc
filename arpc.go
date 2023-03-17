@@ -339,3 +339,18 @@ func (m *Manager) Handler(f any) http.Handler {
 		}
 	})
 }
+
+type Middleware func(r *http.Request) error
+
+func (m *Manager) Middleware(f Middleware) func(http.Handler) http.Handler {
+	return func(h http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			err := f(r)
+			if err != nil {
+				m.encodeAndHookError(w, r, nil, err)
+				return
+			}
+			h.ServeHTTP(w, r)
+		})
+	}
+}
