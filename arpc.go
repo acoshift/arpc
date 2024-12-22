@@ -114,7 +114,13 @@ func (m *Manager) Decode(r *http.Request, v any) error {
 		p.AdaptRequest(r)
 	}
 
-	if r.Method == http.MethodPost {
+	switch r.Method {
+	case http.MethodGet:
+		if v, ok := v.(FormUnmarshaler); ok {
+			return WrapError(v.UnmarshalForm(r.Form))
+		}
+		return nil
+	case http.MethodPost:
 		mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
 		switch mt {
 		case "application/json":
@@ -177,19 +183,21 @@ func (m *Manager) NotFoundHandler() http.Handler {
 type mapIndex int
 
 const (
-	_                mapIndex = iota
-	miContext                 // context.Context
-	miRequest                 // *http.Request
-	miResponseWriter          // http.ResponseWriter
-	miAny                     // any
-	miError                   // error
+	_                   mapIndex = iota
+	miContext                    // context.Context
+	miRequest                    // *http.Request
+	miResponseWriter             // http.ResponseWriter
+	miSSEResponseWriter          // SSEResponseWriter
+	miAny                        // any
+	miError                      // error
 )
 
 const (
-	strContext        = "context.Context"
-	strRequest        = "*http.Request"
-	strResponseWriter = "http.ResponseWriter"
-	strError          = "error"
+	strContext           = "context.Context"
+	strRequest           = "*http.Request"
+	strResponseWriter    = "http.ResponseWriter"
+	strSSEResponseWriter = "arpc.SSEResponseWriter"
+	strError             = "error"
 )
 
 func setOrPanic(m map[mapIndex]int, k mapIndex, v int) {
@@ -237,6 +245,9 @@ func (m *Manager) Handler(f any) http.Handler {
 			setOrPanic(mapIn, miRequest, i)
 		case strResponseWriter:
 			setOrPanic(mapIn, miResponseWriter, i)
+			hasWriter = true
+		case strSSEResponseWriter:
+			setOrPanic(mapIn, miSSEResponseWriter, i)
 			hasWriter = true
 		default:
 			setOrPanic(mapIn, miAny, i)
@@ -313,6 +324,10 @@ func (m *Manager) Handler(f any) http.Handler {
 		// inject response writer
 		if i, ok := mapIn[miResponseWriter]; ok {
 			vIn[i] = reflect.ValueOf(w)
+		}
+		// inject sse response writer
+		if i, ok := mapIn[miSSEResponseWriter]; ok {
+			vIn[i] = reflect.ValueOf(newSSEResponseWriter(w))
 		}
 
 		vOut := fv.Call(vIn)

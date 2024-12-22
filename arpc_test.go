@@ -27,6 +27,12 @@ func f1(r *request) int {
 func f2() {
 }
 
+func f3(ctx context.Context, w arpc.SSEResponseWriter) error {
+	w.Write([]byte("data: 1\n\n"))
+	<-ctx.Done()
+	return nil
+}
+
 func TestSuccess(t *testing.T) {
 	t.Parallel()
 
@@ -275,4 +281,25 @@ func TestMiddleware(t *testing.T) {
 		assert.True(t, runHandler)
 		assert.JSONEq(t, `{"ok":true,"result":{}}`, w.Body.String())
 	})
+}
+
+func TestSSE(t *testing.T) {
+	t.Parallel()
+
+	m := arpc.New()
+	h := m.Handler(f3)
+	ctx, cancel := context.WithCancel(context.Background())
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(ctx, "GET", "/", nil)
+	waitExit := make(chan struct{})
+	go func() {
+		h.ServeHTTP(w, r)
+		waitExit <- struct{}{}
+	}()
+	cancel()
+	<-waitExit
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "text/event-stream", w.Header().Get("Content-Type"))
+	assert.Equal(t, "data: 1\n\n", w.Body.String())
 }
