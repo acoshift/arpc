@@ -114,7 +114,13 @@ func (m *Manager) Decode(r *http.Request, v any) error {
 		p.AdaptRequest(r)
 	}
 
-	if r.Method == http.MethodPost {
+	switch r.Method {
+	case http.MethodGet:
+		if v, ok := v.(FormUnmarshaler); ok {
+			return WrapError(v.UnmarshalForm(r.Form))
+		}
+		return nil
+	case http.MethodPost:
 		mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
 		switch mt {
 		case "application/json":
@@ -141,14 +147,6 @@ func (m *Manager) Decode(r *http.Request, v any) error {
 	// fallback to request unmarshaler
 	if v, ok := v.(RequestUnmarshaler); ok {
 		return WrapError(v.UnmarshalRequest(r))
-	}
-
-	// GET without body
-	if r.Method == http.MethodGet {
-		if v, ok := v.(FormUnmarshaler); ok {
-			return WrapError(v.UnmarshalForm(r.Form))
-		}
-		return nil
 	}
 
 	return ErrUnsupported
