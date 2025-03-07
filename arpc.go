@@ -45,6 +45,10 @@ type Validatable interface {
 	Valid() error
 }
 
+type Mux interface {
+	Handle(pattern string, handler http.Handler)
+}
+
 type Manager struct {
 	Decoder      Decoder
 	Encoder      Encoder
@@ -355,6 +359,14 @@ func (m *Manager) Handler(f any) http.Handler {
 			f(w, r, req, res)
 		}
 	})
+}
+
+func (m *Manager) Mount(mux Mux, pattern string, f any) {
+	mux.Handle(pattern, m.Handler(f))
+}
+
+func (m *Manager) Mounter(mux Mux) *Mounter {
+	return &Mounter{Manager: m, Mux: mux}
 }
 
 type MiddlewareContext struct {
