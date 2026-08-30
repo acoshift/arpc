@@ -49,7 +49,7 @@ func (w *sseResponseWriter) Write(b []byte) (int, error) {
 }
 
 func (w *sseResponseWriter) writeData(data string) error {
-	for _, x := range strings.Split(data, "\n") {
+	for x := range strings.SplitSeq(data, "\n") {
 		_, err := w.w.Write([]byte("data: " + x + "\n"))
 		if err != nil {
 			return err

@@ -1,6 +1,6 @@
 module github.com/acoshift/arpc/v2
 
-go 1.23
+go 1.26
 
 require github.com/stretchr/testify v1.10.0
 

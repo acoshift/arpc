@@ -3,6 +3,7 @@ package arpc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"mime"
 	"mime/multipart"
 	"net/http"
@@ -158,12 +159,13 @@ func (m *Manager) Decode(r *http.Request, v any) error {
 
 func (m *Manager) EncodeError(w http.ResponseWriter, r *http.Request, err error) {
 	var status int
-	switch err.(type) {
-	case OKError:
+	if e, ok := errors.AsType[OKError](err); ok {
 		status = http.StatusOK
-	case *ProtocolError:
+		err = e
+	} else if e, ok := errors.AsType[*ProtocolError](err); ok {
 		status = http.StatusBadRequest
-	default:
+		err = e
+	} else {
 		status = http.StatusInternalServerError
 		err = internalError{}
 	}
@@ -196,14 +198,6 @@ const (
 	miError                      // error
 )
 
-const (
-	strContext           = "context.Context"
-	strRequest           = "*http.Request"
-	strResponseWriter    = "http.ResponseWriter"
-	strSSEResponseWriter = "arpc.SSEResponseWriter"
-	strError             = "error"
-)
-
 func setOrPanic(m map[mapIndex]int, k mapIndex, v int) {
 	if _, exists := m[k]; exists {
 		panic("arpc: duplicate input type")
@@ -232,25 +226,21 @@ func (m *Manager) Handler(f any) http.Handler {
 
 	// build mapIn
 	numIn := ft.NumIn()
+	if ft.IsVariadic() {
+		// skip grpc call options
+		numIn--
+	}
 	mapIn := make(map[mapIndex]int)
-	for i := 0; i < numIn; i++ {
-		fi := ft.In(i)
-
-		// assume this is grpc call options
-		if fi.Kind() == reflect.Slice && i == numIn-1 {
-			numIn--
-			break
-		}
-
-		switch fi.String() {
-		case strContext:
+	for i := range numIn {
+		switch ft.In(i) {
+		case reflect.TypeFor[context.Context]():
 			setOrPanic(mapIn, miContext, i)
-		case strRequest:
+		case reflect.TypeFor[*http.Request]():
 			setOrPanic(mapIn, miRequest, i)
-		case strResponseWriter:
+		case reflect.TypeFor[http.ResponseWriter]():
 			setOrPanic(mapIn, miResponseWriter, i)
 			hasWriter = true
-		case strSSEResponseWriter:
+		case reflect.TypeFor[SSEResponseWriter]():
 			setOrPanic(mapIn, miSSEResponseWriter, i)
 			hasWriter = true
 		default:
@@ -258,12 +248,11 @@ func (m *Manager) Handler(f any) http.Handler {
 		}
 	}
 
-	// build mapOut
 	numOut := ft.NumOut()
 	mapOut := make(map[mapIndex]int)
-	for i := 0; i < numOut; i++ {
-		switch ft.Out(i).String() {
-		case strError:
+	for i := range numOut {
+		switch ft.Out(i) {
+		case reflect.TypeFor[error]():
 			setOrPanic(mapOut, miError, i)
 		default:
 			setOrPanic(mapOut, miAny, i)
@@ -276,7 +265,7 @@ func (m *Manager) Handler(f any) http.Handler {
 	)
 	if i, ok := mapIn[miAny]; ok {
 		infType = ft.In(i)
-		if infType.Kind() == reflect.Ptr {
+		if infType.Kind() == reflect.Pointer {
 			infType = infType.Elem()
 			infPtr = true
 		}
@@ -394,7 +383,7 @@ func (ctx *MiddlewareContext) Err() error {
 	return ctx.r.Context().Err()
 }
 
-func (ctx *MiddlewareContext) Value(key interface{}) interface{} {
+func (ctx *MiddlewareContext) Value(key any) any {
 	return ctx.r.Context().Value(key)
 }
 

@@ -9,6 +9,8 @@ ARPC is the Acoshift's opinionated HTTP-RPC styled api
 
 ## Installation
 
+Requires Go 1.26 or later.
+
 ```
 go get -u github.com/acoshift/arpc/v2
 ```
@@ -119,7 +121,7 @@ func main() {
 	am := arpc.New()
 
 	mux := http.NewServeMux()
-	mux.Handle("/hello", am.Handle(Hello))
+	mux.Handle("POST /hello", am.Handler(Hello))
 	
 	// start server 
 	log.Fatal(http.ListenAndServe(":8080", mux))

@@ -3,11 +3,13 @@ package arpc_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strconv"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -162,6 +164,85 @@ func TestError(t *testing.T) {
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
 		assert.JSONEq(t, `{"ok":false,"error":{}}`, w.Body.String())
 	})
+
+	t.Run("Wrapped OKError", func(t *testing.T) {
+		h := m.Handler(func() error {
+			return fmt.Errorf("wrap: %w", arpc.NewError("some error"))
+		})
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("POST", "/", bytes.NewReader([]byte(`{}`)))
+		r.Header.Set("Content-Type", "application/json")
+		h.ServeHTTP(w, r)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.JSONEq(t, `{"ok":false,"error":{"message":"some error"}}`, w.Body.String())
+	})
+
+	t.Run("Wrapped ProtocolError", func(t *testing.T) {
+		h := m.Handler(func() error {
+			return fmt.Errorf("wrap: %w", arpc.ErrNotFound)
+		})
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("POST", "/", bytes.NewReader([]byte(`{}`)))
+		r.Header.Set("Content-Type", "application/json")
+		h.ServeHTTP(w, r)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+		assert.JSONEq(t, `{"ok":false,"error":{"message":"not found"}}`, w.Body.String())
+	})
+
+	t.Run("Join OKError wins", func(t *testing.T) {
+		h := m.Handler(func() error {
+			return errors.Join(fmt.Errorf("internal"), arpc.NewError("user"))
+		})
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("POST", "/", bytes.NewReader([]byte(`{}`)))
+		r.Header.Set("Content-Type", "application/json")
+		h.ServeHTTP(w, r)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.JSONEq(t, `{"ok":false,"error":{"message":"user"}}`, w.Body.String())
+	})
+}
+
+func TestWrapError(t *testing.T) {
+	t.Parallel()
+
+	t.Run("nil", func(t *testing.T) {
+		assert.Nil(t, arpc.WrapError(nil))
+	})
+
+	t.Run("Error", func(t *testing.T) {
+		err := arpc.NewError("x")
+		assert.Equal(t, err, arpc.WrapError(err))
+	})
+
+	t.Run("ProtocolError", func(t *testing.T) {
+		assert.Equal(t, arpc.ErrNotFound, arpc.WrapError(arpc.ErrNotFound))
+	})
+
+	t.Run("wrapped Error", func(t *testing.T) {
+		inner := arpc.NewError("x")
+		err := fmt.Errorf("wrap: %w", inner)
+		assert.Equal(t, err, arpc.WrapError(err))
+	})
+
+	t.Run("wrapped ProtocolError", func(t *testing.T) {
+		err := fmt.Errorf("wrap: %w", arpc.ErrNotFound)
+		assert.Equal(t, err, arpc.WrapError(err))
+	})
+
+	t.Run("OKError", func(t *testing.T) {
+		err := &customError{"1A475"}
+		assert.Equal(t, err, arpc.WrapError(err))
+	})
+
+	t.Run("generic", func(t *testing.T) {
+		err := fmt.Errorf("x")
+		got, ok := errors.AsType[*arpc.Error](arpc.WrapError(err))
+		assert.True(t, ok)
+		assert.Equal(t, "x", got.Message())
+	})
 }
 
 type customError struct {
@@ -288,18 +369,88 @@ func TestSSE(t *testing.T) {
 
 	m := arpc.New()
 	h := m.Handler(f3)
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	w := httptest.NewRecorder()
-	r := httptest.NewRequestWithContext(ctx, "GET", "/", nil)
-	waitExit := make(chan struct{})
-	go func() {
+	r := httptest.NewRequestWithContext(ctx, http.MethodGet, "/", nil)
+	var wg sync.WaitGroup
+	wg.Go(func() {
 		h.ServeHTTP(w, r)
-		waitExit <- struct{}{}
-	}()
+	})
 	cancel()
-	<-waitExit
+	wg.Wait()
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, "text/event-stream", w.Header().Get("Content-Type"))
 	assert.Equal(t, "data: 1\n\n", w.Body.String())
+}
+
+func TestSSEWriteData(t *testing.T) {
+	t.Parallel()
+
+	m := arpc.New()
+	h := m.Handler(func(w arpc.SSEResponseWriter) error {
+		if err := w.WriteData("line1\nline2"); err != nil {
+			return err
+		}
+		return w.WriteEvent("ping", "ok")
+	})
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodGet, "/", nil)
+	h.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "text/event-stream", w.Header().Get("Content-Type"))
+	assert.Equal(t, "data: line1\ndata: line2\n\nevent: ping\ndata: ok\n\n", w.Body.String())
+}
+
+func TestHandlerTrailingSliceArg(t *testing.T) {
+	t.Parallel()
+
+	m := arpc.New()
+	h := m.Handler(func(r *request, _ ...string) int {
+		return r.A + r.B
+	})
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(`{"a": 2, "b": 3}`)))
+	r.Header.Set("Content-Type", "application/json")
+	h.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.JSONEq(t, `{"ok":true,"result":5}`, w.Body.String())
+}
+
+func TestHandlerSliceRequest(t *testing.T) {
+	t.Parallel()
+
+	m := arpc.New()
+	h := m.Handler(func(items []int) int {
+		return len(items)
+	})
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(`[1,2,3]`)))
+	r.Header.Set("Content-Type", "application/json")
+	h.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.JSONEq(t, `{"ok":true,"result":3}`, w.Body.String())
+}
+
+type formOKErrorReq struct{}
+
+func (formOKErrorReq) UnmarshalForm(url.Values) error {
+	return &customError{"1A475"}
+}
+
+func TestDecodeCustomOKError(t *testing.T) {
+	t.Parallel()
+
+	m := arpc.New()
+	h := m.Handler(func(*formOKErrorReq) error { return nil })
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/", bytes.NewReader([]byte(`a=1`)))
+	r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	h.ServeHTTP(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.JSONEq(t, `{"ok":false,"error":{"code":"1A475"}}`, w.Body.String())
 }
