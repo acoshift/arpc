@@ -2,10 +2,12 @@ package arpc
 
 import (
 	"encoding/json"
+	"errors"
 )
 
 // OKError implements this interface to mark errors as 200
 type OKError interface {
+	error
 	OKError()
 }
 
@@ -71,14 +73,13 @@ func WrapError(err error) error {
 	if err == nil {
 		return nil
 	}
-	switch err.(type) {
-	case *Error:
+	if _, ok := errors.AsType[OKError](err); ok {
 		return err
-	case *ProtocolError:
-		return err
-	default:
-		return wrapError(err)
 	}
+	if _, ok := errors.AsType[*ProtocolError](err); ok {
+		return err
+	}
+	return wrapError(err)
 }
 
 // ProtocolError always returns 400 status with false ok value
