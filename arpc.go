@@ -125,13 +125,13 @@ func (m *Manager) Decode(r *http.Request, v any) error {
 			return WrapError(v.UnmarshalForm(r.Form))
 		}
 		return nil
-	case http.MethodPost:
+	case http.MethodPost, methodQuery:
 		mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
 		switch mt {
 		case "application/json":
 			return WrapError(json.NewDecoder(r.Body).Decode(v))
 		case "application/x-www-form-urlencoded":
-			err := r.ParseForm()
+			err := parseForm(r)
 			if err != nil {
 				return WrapError(err)
 			}
@@ -155,6 +155,19 @@ func (m *Manager) Decode(r *http.Request, v any) error {
 	}
 
 	return ErrUnsupported
+}
+
+// RFC 10008. net/http has no MethodQuery on Go 1.26.
+const methodQuery = "QUERY"
+
+func parseForm(r *http.Request) error {
+	// ParseForm reads the body only for POST, PUT, and PATCH.
+	if r.Method != methodQuery {
+		return r.ParseForm()
+	}
+	r.Method = http.MethodPost
+	defer func() { r.Method = methodQuery }()
+	return r.ParseForm()
 }
 
 func (m *Manager) EncodeError(w http.ResponseWriter, r *http.Request, err error) {

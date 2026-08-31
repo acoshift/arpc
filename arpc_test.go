@@ -81,6 +81,46 @@ func TestOnOK(t *testing.T) {
 	})
 }
 
+func TestQuery(t *testing.T) {
+	t.Parallel()
+
+	m := arpc.New()
+
+	t.Run("JSON", func(t *testing.T) {
+		h := m.Handler(f1)
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("QUERY", "/", bytes.NewReader([]byte(`{"a": 2, "b": 3}`)))
+		r.Header.Set("Content-Type", "application/json")
+		h.ServeHTTP(w, r)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.JSONEq(t, `{"ok":true,"result":5}`, w.Body.String())
+	})
+
+	t.Run("Form", func(t *testing.T) {
+		h := m.Handler(func(r *http.Request, req *requestWithAdapter) int {
+			assert.Equal(t, "QUERY", r.Method)
+			return req.A
+		})
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("QUERY", "/", bytes.NewReader([]byte(`a=1`)))
+		r.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		h.ServeHTTP(w, r)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		assert.JSONEq(t, `{"ok":true,"result":1}`, w.Body.String())
+	})
+
+	t.Run("UnsupportedContentType", func(t *testing.T) {
+		h := m.Handler(f1)
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest("QUERY", "/", bytes.NewReader([]byte(`{"a": 2, "b": 3}`)))
+		h.ServeHTTP(w, r)
+
+		assert.Equal(t, http.StatusBadRequest, w.Code)
+	})
+}
+
 func TestInvalidContentType(t *testing.T) {
 	t.Parallel()
 
