@@ -121,6 +121,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.Handle("POST /hello", am.Handler(Hello))
+	mux.Handle("QUERY /hello", am.Handler(Hello))
 	
 	// start server 
 	log.Fatal(http.ListenAndServe(":8080", mux))
